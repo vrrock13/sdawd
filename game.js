@@ -7,18 +7,58 @@ const books = [
   { id: "forbidden_cult", name: "금서: 군중심리", type: "금서", desc: "선동과 광신의 구조." }
 ];
 
-const visitors = [
-  { id: "honest", name: "정직한 청년", trait: "눈을 잘 마주치며 대가를 정확히 약속한다." },
-  { id: "scammer", name: "떠돌이 사기꾼", trait: "말은 번지르르하지만 소지품이 빈약하다." },
-  { id: "raider", name: "약탈단 이탈자", trait: "다급하나 폭력의 흔적을 숨기지 못한다." },
-  { id: "nurse", name: "야전 간호사", trait: "지친 표정이지만 요청 목적이 분명하다." }
+const visitorArchetypes = [
+  { id: "honest", name: "정직한", trait: "눈을 잘 마주치며 대가를 정확히 약속한다.", suspicious: 10 },
+  { id: "scammer", name: "떠돌이", trait: "말은 번지르르하지만 소지품이 빈약하다.", suspicious: 35 },
+  { id: "raider", name: "약탈단 출신", trait: "다급하나 폭력의 흔적을 숨기지 못한다.", suspicious: 28 },
+  { id: "nurse", name: "야전 간호", trait: "지친 표정이지만 요청 목적이 분명하다.", suspicious: 12 },
+  { id: "engineer", name: "노련한 기술자", trait: "손때 묻은 공구를 들고 장비 상태를 집요하게 확인한다.", suspicious: 16 },
+  { id: "refugee", name: "피난민 대표", trait: "공포에 떨지만 공동체를 살리려는 절박함이 있다.", suspicious: 18 },
+  { id: "soldier", name: "전선 복귀병", trait: "말수가 적고 주변 출입구를 먼저 확인한다.", suspicious: 24 },
+  { id: "monk", name: "순회 설교자", trait: "차분한 어조지만 집단 심리를 잘 이해한다.", suspicious: 22 },
+  { id: "smuggler", name: "밀수꾼", trait: "거래에 능숙하고 정보를 흘리며 반응을 살핀다.", suspicious: 30 }
 ];
 
+const visitorRoles = ["청년", "중년", "노인", "정찰병", "생존자", "기록관", "상인", "파수꾼"];
+const visitorMoods = ["피로", "경계", "초조", "결의", "침착", "냉정"];
+
 const requests = [
-  { id: "fertilizer", text: "비료 만드는 법이 적힌 책이 필요합니다." },
-  { id: "fever", text: "열병 치료법을 찾고 있어요." },
-  { id: "defense", text: "마을 방어선을 강화할 방법이 필요해." },
-  { id: "faith", text: "사람들 마음을 하나로 묶을 말이 필요합니다." }
+  { id: "fertilizer" },
+  { id: "fever" },
+  { id: "defense" },
+  { id: "faith" }
+];
+
+const requestTextPool = {
+  fertilizer: [
+    "비료 만드는 법이 적힌 책이 필요합니다.",
+    "씨앗이 죽어가요. 토양 되살리는 기록이 있습니까?",
+    "거름 배합법을 모르겠어. 이번 파종이 마지막이야."
+  ],
+  fever: [
+    "열병 치료법을 찾고 있어요.",
+    "해열과 격리 절차가 필요합니다. 환자가 늘고 있습니다.",
+    "아이들 고열이 멈추지 않습니다. 의학서를 빌려주세요."
+  ],
+  defense: [
+    "마을 방어선을 강화할 방법이 필요해.",
+    "성문이 오래 못 버텨. 방어 설계 관련 책을 찾고 있어.",
+    "습격이 예고됐어. 방어 준비 지식을 원한다."
+  ],
+  faith: [
+    "사람들 마음을 하나로 묶을 말이 필요합니다.",
+    "공동체가 갈라지고 있어요. 결속에 관한 텍스트가 필요합니다.",
+    "폭동 직전입니다. 사람들을 진정시킬 지식이 필요해요."
+  ]
+};
+
+const questionTemplates = [
+  { id: "payment", label: "대가는 정확히 뭔가?" },
+  { id: "route", label: "어디로 가고, 누구랑 가나?" },
+  { id: "history", label: "이전 임무에서 무슨 일이 있었지?" },
+  { id: "intent", label: "왜 지금 이 책이 꼭 필요하지?" },
+  { id: "risk", label: "실패하면 책임은 누가 지나?" },
+  { id: "proof", label: "신뢰할 증거를 내놔." }
 ];
 
 const outcomeTable = {
@@ -139,6 +179,8 @@ const state = {
   selectedBookId: null,
   currentVisitor: null,
   currentRequest: null,
+  askedQuestions: new Set(),
+  questionPanelOpen: false,
   lostBooks: new Set()
 };
 
@@ -157,7 +199,8 @@ const el = {
   bookDetail: document.getElementById("bookDetail"),
   giveBtn: document.getElementById("giveBtn"),
   rejectBtn: document.getElementById("rejectBtn"),
-  askBtn: document.getElementById("askBtn")
+  askBtn: document.getElementById("askBtn"),
+  questionPanel: document.getElementById("questionPanel")
 };
 
 function pick(arr) {
@@ -222,18 +265,78 @@ function updateHud() {
   el.threat.textContent = `위협도 ${state.threat} (${threatLabel(state.threat)})`;
 }
 
-function nextVisitor() {
-  state.currentVisitor = pick(visitors);
-  state.currentRequest = pick(requests);
-  state.selectedBookId = null;
 
-  const suspicious = state.currentVisitor.id === "scammer" ? 35 : state.currentVisitor.id === "raider" ? 28 : 12;
+function buildVisitor() {
+  const archetype = pick(visitorArchetypes);
+  const role = pick(visitorRoles);
+  const mood = pick(visitorMoods);
+  return {
+    id: archetype.id,
+    name: `${archetype.name} ${role}`,
+    trait: `${archetype.trait} 현재 상태: ${mood}.`,
+    suspicious: archetype.suspicious + Math.floor(Math.random() * 8)
+  };
+}
+
+function renderQuestionPanel() {
+  if (!el.questionPanel) return;
+  el.questionPanel.innerHTML = "";
+  const selected = [...questionTemplates].sort(() => Math.random() - 0.5).slice(0, 4);
+
+  selected.forEach((q) => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "q-btn";
+    btn.textContent = q.label;
+    btn.disabled = state.askedQuestions.has(q.id);
+    btn.addEventListener("click", () => askQuestion(q));
+    el.questionPanel.appendChild(btn);
+  });
+
+  el.questionPanel.style.display = state.questionPanelOpen ? "grid" : "none";
+}
+
+function askQuestion(question) {
+  if (state.askedQuestions.has(question.id)) return;
+  state.askedQuestions.add(question.id);
+
+  const visitor = state.currentVisitor;
+  const requestId = state.currentRequest.id;
+  const answerByQuestion = {
+    payment: `답변: ${visitor.name}이(가) 식량/연료/정보 중 현재 가진 것을 선지급하진 못하지만 임무 성공 후 반드시 지급하겠다고 했다.`,
+    route: `답변: ${requestId} 관련 거점까지 우회 경로를 택하고 3~5명 규모로 이동한다고 말했다.`,
+    history: `답변: 지난 임무에서 손실이 있었고 그 실패를 반복하지 않기 위해 이번엔 책을 요청했다고 밝혔다.`,
+    intent: `답변: 지금 필요한 건 물자보다 지식이라며 '${state.currentRequest.text}'를 다시 강조했다.`,
+    risk: `답변: 실패 시 요청자가 책임을 지며, 가능하면 기록본을 회수해 반환하겠다고 했다.`,
+    proof: `답변: 지도 조각과 이전 거래 기록 일부를 보여주며 신뢰를 요구했다.`
+  };
+
+  const suspicionDelta = visitor.id === "scammer" || visitor.id === "smuggler" ? 2 : -1;
+  state.currentVisitor.suspicious = Math.max(5, state.currentVisitor.suspicious + suspicionDelta);
+  el.trustHint.textContent = `신뢰도 단서: 거짓말 확률 추정 ${state.currentVisitor.suspicious}%`;
+  state.radio.push(answerByQuestion[question.id]);
+  renderLogs();
+  renderQuestionPanel();
+}
+
+function nextVisitor() {
+  state.currentVisitor = buildVisitor();
+  const requestBase = pick(requests);
+  state.currentRequest = {
+    id: requestBase.id,
+    text: pick(requestTextPool[requestBase.id])
+  };
+  state.selectedBookId = null;
+  state.askedQuestions.clear();
+  state.questionPanelOpen = false;
+
   el.visitorName.textContent = state.currentVisitor.name;
   el.visitorTrait.textContent = state.currentVisitor.trait;
   el.requestText.textContent = state.currentRequest.text;
-  el.trustHint.textContent = `신뢰도 단서: 거짓말 확률 추정 ${suspicious}%`;
+  el.trustHint.textContent = `신뢰도 단서: 거짓말 확률 추정 ${state.currentVisitor.suspicious}%`;
   el.bookDetail.textContent = "도서를 선택하세요.";
   renderBooks();
+  renderQuestionPanel();
 }
 
 function consumeDailyResources() {
@@ -304,13 +407,9 @@ function rejectVisitor() {
 }
 
 function askMore() {
-  const hints = {
-    honest: "추가 질문 답변: 목적과 대가를 구체적으로 설명했다.",
-    scammer: "추가 질문 답변: 대가를 말할 때 시선이 흔들렸다.",
-    raider: "추가 질문 답변: 방어라 했지만 약탈단 동선을 자꾸 묻는다.",
-    nurse: "추가 질문 답변: 환자 수와 증상을 정확히 기록해왔다."
-  };
-  state.radio.push(hints[state.currentVisitor.id]);
+  state.questionPanelOpen = !state.questionPanelOpen;
+  renderQuestionPanel();
+  state.radio.push(state.questionPanelOpen ? "무전: 심문 질문 목록을 펼쳤습니다." : "무전: 심문 질문 목록을 닫았습니다.");
   renderLogs();
 }
 

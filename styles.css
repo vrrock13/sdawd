@@ -169,6 +169,28 @@ body {
 }
 
 .panel-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+
+
+.question-panel {
+  display: none;
+  margin-top: 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.q-btn {
+  background: linear-gradient(180deg, #384051, #2a2f3d);
+  border: 1px solid #677089;
+  color: #e8e8f4;
+  font-size: 12px;
+  padding: 7px;
+  border-radius: 5px;
+}
+
+.q-btn:disabled {
+  opacity: .45;
+  cursor: not-allowed;
+}
 .calendar { padding: 8px; border-radius: 4px; }
 .calendar-grid {
   margin-top: 6px;
