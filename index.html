@@ -11,8 +11,10 @@
     <div id="screenFlash" aria-hidden="true"></div>
     <div id="notification" aria-live="polite"></div>
 
+    <div class="grain" aria-hidden="true"></div>
+
     <div class="game-shell">
-      <header class="hud">
+      <header class="hud frame">
         <div id="day">Day 1</div>
         <div id="tempFuel">온도 4℃ | 연료 20</div>
         <div id="foodHunger">식량 20 | 허기 0</div>
@@ -20,18 +22,29 @@
       </header>
 
       <main class="main-grid">
-        <aside class="panel left-panel">
+        <aside class="panel left-panel frame">
           <h2>어제의 결과</h2>
+          <div class="widget id-sheet">
+            <div class="dot-list" aria-hidden="true"></div>
+            <div class="lines" aria-hidden="true"></div>
+          </div>
           <ul id="resultLog"></ul>
+          <button class="big-alert" type="button" aria-label="alert"></button>
         </aside>
 
-        <section class="panel center-panel">
-          <div class="visitor-box">
-            <div class="silhouette"></div>
-            <div class="visitor-info">
-              <h2 id="visitorName">방문자</h2>
-              <p id="visitorTrait" class="sub"></p>
-              <p id="requestText"></p>
+        <section class="panel center-panel frame">
+          <div class="monitor-shell">
+            <span class="bolt b1"></span><span class="bolt b2"></span><span class="bolt b3"></span><span class="bolt b4"></span>
+            <div class="screen-inner">
+              <div class="scanline" aria-hidden="true"></div>
+              <div class="visitor-box">
+                <div class="silhouette"></div>
+                <div class="visitor-info">
+                  <h2 id="visitorName">방문자</h2>
+                  <p id="visitorTrait" class="sub"></p>
+                  <p id="requestText"></p>
+                </div>
+              </div>
             </div>
           </div>
           <div class="hint-box">
@@ -39,17 +52,25 @@
           </div>
         </section>
 
-        <aside class="panel right-panel">
+        <aside class="panel right-panel frame">
           <div class="panel-head">
             <h2>무전기 / 사건 경보</h2>
             <button id="audioBtn" class="mini-btn" type="button">🔇 사운드 OFF</button>
           </div>
+          <div class="widget calendar" aria-hidden="true">
+            <strong>FEB 1955</strong>
+            <div class="calendar-grid"></div>
+          </div>
           <ul id="radioLog"></ul>
+          <div class="widget data-box" aria-hidden="true">DATA</div>
         </aside>
       </main>
 
-      <footer class="desk">
-        <h2>책상: 도서 선택</h2>
+      <footer class="desk frame">
+        <div class="desk-top">
+          <div class="phone" aria-hidden="true"></div>
+          <h2>책상: 도서 선택</h2>
+        </div>
         <div id="bookCards" class="book-cards"></div>
         <div id="bookDetail" class="book-detail">도서를 선택하세요.</div>
         <div class="actions">
