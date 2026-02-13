@@ -97,6 +97,11 @@ body {
   margin-bottom: 10px;
 }
 
+.memo-panel { padding: 8px; display: grid; gap: 4px; }
+.memo-panel label { font-size: 12px; display: flex; gap: 6px; align-items: center; }
+.memo-panel input { accent-color: #7e5b68; }
+#docStatus { margin-top: 8px; color: #d8c2aa; }
+
 .id-sheet {
   display: grid;
   grid-template-columns: 26px 1fr;

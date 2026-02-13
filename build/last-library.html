@@ -104,6 +104,11 @@ body {
   margin-bottom: 10px;
 }
 
+.memo-panel { padding: 8px; display: grid; gap: 4px; }
+.memo-panel label { font-size: 12px; display: flex; gap: 6px; align-items: center; }
+.memo-panel input { accent-color: #7e5b68; }
+#docStatus { margin-top: 8px; color: #d8c2aa; }
+
 .id-sheet {
   display: grid;
   grid-template-columns: 26px 1fr;
@@ -282,7 +287,6 @@ button:active { transform: translateY(1px); }
     <canvas id="fxCanvas" aria-hidden="true"></canvas>
     <div id="screenFlash" aria-hidden="true"></div>
     <div id="notification" aria-live="polite"></div>
-
     <div class="grain" aria-hidden="true"></div>
 
     <div class="game-shell">
@@ -295,13 +299,11 @@ button:active { transform: translateY(1px); }
 
       <main class="main-grid">
         <aside class="panel left-panel frame">
-          <h2>어제의 결과</h2>
-          <div class="widget id-sheet">
-            <div class="dot-list" aria-hidden="true"></div>
-            <div class="lines" aria-hidden="true"></div>
-          </div>
+          <h2>심사 체크리스트</h2>
+          <div id="memoPanel" class="widget memo-panel"></div>
+          <h3>어제의 결과</h3>
           <ul id="resultLog"></ul>
-          <button class="big-alert" type="button" aria-label="alert"></button>
+          <button id="alertBtn" class="big-alert" type="button" aria-label="DDD 비상 호출"></button>
         </aside>
 
         <section class="panel center-panel frame">
@@ -315,6 +317,7 @@ button:active { transform: translateY(1px); }
                   <h2 id="visitorName">방문자</h2>
                   <p id="visitorTrait" class="sub"></p>
                   <p id="requestText"></p>
+                  <p id="docStatus" class="sub"></p>
                 </div>
               </div>
             </div>
@@ -330,12 +333,8 @@ button:active { transform: translateY(1px); }
             <h2>무전기 / 사건 경보</h2>
             <button id="audioBtn" class="mini-btn" type="button">🔇 사운드 OFF</button>
           </div>
-          <div class="widget calendar" aria-hidden="true">
-            <strong>FEB 1955</strong>
-            <div class="calendar-grid"></div>
-          </div>
+          <div id="dataBox" class="widget data-box">검문 통계 로딩중...</div>
           <ul id="radioLog"></ul>
-          <div class="widget data-box" aria-hidden="true">DATA</div>
         </aside>
       </main>
 
@@ -347,75 +346,51 @@ button:active { transform: translateY(1px); }
         <div id="bookCards" class="book-cards"></div>
         <div id="bookDetail" class="book-detail">도서를 선택하세요.</div>
         <div class="actions">
-          <button id="giveBtn">전달</button>
-          <button id="rejectBtn">거절</button>
-          <button id="askBtn">질문 선택</button>
+          <button id="giveBtn">입장 승인 + 도서 전달</button>
+          <button id="rejectBtn">입장 거부</button>
+          <button id="askBtn">질문/검사</button>
         </div>
       </footer>
     </div>
 
     <script>
 const books = [
-  { id: "practical_farming", name: "농사 입문", type: "실용서", desc: "비료, 윤작, 종자 보관법." },
-  { id: "practical_medicine", name: "응급 처치", type: "실용서", desc: "지혈, 열 관리, 부목 고정." },
-  { id: "practical_water", name: "정수와 위생", type: "실용서", desc: "물 소독과 감염 예방법." },
-  { id: "tech_guns", name: "총기 정비 매뉴얼", type: "기술서", desc: "무기 분해·재조립." },
-  { id: "tech_explosive", name: "즉석 폭약 공학", type: "기술서", desc: "고위험 제작 지식." },
-  { id: "forbidden_cult", name: "금서: 군중심리", type: "금서", desc: "선동과 광신의 구조." }
+  { id: "practical_farming", name: "농사 입문", type: "실용서", desc: "비료, 윤작, 종자 보관법.", risk: 0 },
+  { id: "practical_medicine", name: "응급 처치", type: "실용서", desc: "지혈, 열 관리, 부목 고정.", risk: 0 },
+  { id: "practical_water", name: "정수와 위생", type: "실용서", desc: "물 소독과 감염 예방법.", risk: 0 },
+  { id: "tech_guns", name: "총기 정비 매뉴얼", type: "기술서", desc: "무기 분해·재조립.", risk: 2 },
+  { id: "tech_explosive", name: "즉석 폭약 공학", type: "기술서", desc: "고위험 제작 지식.", risk: 3 },
+  { id: "forbidden_cult", name: "금서: 군중심리", type: "금서", desc: "선동과 광신의 구조.", risk: 3 }
 ];
 
-const visitorArchetypes = [
-  { id: "honest", name: "정직한", trait: "눈을 잘 마주치며 대가를 정확히 약속한다.", suspicious: 10 },
-  { id: "scammer", name: "떠돌이", trait: "말은 번지르르하지만 소지품이 빈약하다.", suspicious: 35 },
-  { id: "raider", name: "약탈단 출신", trait: "다급하나 폭력의 흔적을 숨기지 못한다.", suspicious: 28 },
-  { id: "nurse", name: "야전 간호", trait: "지친 표정이지만 요청 목적이 분명하다.", suspicious: 12 },
-  { id: "engineer", name: "노련한 기술자", trait: "손때 묻은 공구를 들고 장비 상태를 집요하게 확인한다.", suspicious: 16 },
-  { id: "refugee", name: "피난민 대표", trait: "공포에 떨지만 공동체를 살리려는 절박함이 있다.", suspicious: 18 },
-  { id: "soldier", name: "전선 복귀병", trait: "말수가 적고 주변 출입구를 먼저 확인한다.", suspicious: 24 },
-  { id: "monk", name: "순회 설교자", trait: "차분한 어조지만 집단 심리를 잘 이해한다.", suspicious: 22 },
-  { id: "smuggler", name: "밀수꾼", trait: "거래에 능숙하고 정보를 흘리며 반응을 살핀다.", suspicious: 30 }
-];
-
-const visitorRoles = ["청년", "중년", "노인", "정찰병", "생존자", "기록관", "상인", "파수꾼"];
-const visitorMoods = ["피로", "경계", "초조", "결의", "침착", "냉정"];
-
-const requests = [
-  { id: "fertilizer" },
-  { id: "fever" },
-  { id: "defense" },
-  { id: "faith" }
-];
-
+const requests = [{ id: "fertilizer" }, { id: "fever" }, { id: "defense" }, { id: "faith" }];
 const requestTextPool = {
-  fertilizer: [
-    "비료 만드는 법이 적힌 책이 필요합니다.",
-    "씨앗이 죽어가요. 토양 되살리는 기록이 있습니까?",
-    "거름 배합법을 모르겠어. 이번 파종이 마지막이야."
-  ],
-  fever: [
-    "열병 치료법을 찾고 있어요.",
-    "해열과 격리 절차가 필요합니다. 환자가 늘고 있습니다.",
-    "아이들 고열이 멈추지 않습니다. 의학서를 빌려주세요."
-  ],
-  defense: [
-    "마을 방어선을 강화할 방법이 필요해.",
-    "성문이 오래 못 버텨. 방어 설계 관련 책을 찾고 있어.",
-    "습격이 예고됐어. 방어 준비 지식을 원한다."
-  ],
-  faith: [
-    "사람들 마음을 하나로 묶을 말이 필요합니다.",
-    "공동체가 갈라지고 있어요. 결속에 관한 텍스트가 필요합니다.",
-    "폭동 직전입니다. 사람들을 진정시킬 지식이 필요해요."
-  ]
+  fertilizer: ["비료 만드는 법이 적힌 책이 필요합니다.", "씨앗이 죽어가요. 토양 되살리는 기록이 있습니까?", "거름 배합법을 모르겠어. 이번 파종이 마지막이야."],
+  fever: ["열병 치료법을 찾고 있어요.", "해열과 격리 절차가 필요합니다. 환자가 늘고 있습니다.", "아이들 고열이 멈추지 않습니다. 의학서를 빌려주세요."],
+  defense: ["마을 방어선을 강화할 방법이 필요해.", "성문이 오래 못 버텨. 방어 설계 관련 책을 찾고 있어.", "습격이 예고됐어. 방어 준비 지식을 원한다."],
+  faith: ["사람들 마음을 하나로 묶을 말이 필요합니다.", "공동체가 갈라지고 있어요. 결속에 관한 텍스트가 필요합니다.", "폭동 직전입니다. 사람들을 진정시킬 지식이 필요해요."]
 };
 
+const firstNames = ["민", "하", "준", "수", "율", "도", "린", "서", "진", "유", "나", "현"];
+const lastNames = ["강", "서", "박", "윤", "한", "오", "남", "진", "백", "문", "심", "노"];
+const jobs = ["정비사", "교사", "배달원", "경비", "간호사", "사서", "농부", "상인", "기록관", "통신병", "제빵사", "재단사"];
+const accessories = ["붉은 스카프", "철제 반지", "검은 장갑", "청동 목걸이", "고글", "붕대", "은색 핀", "왼쪽 귀걸이", "가죽 팔찌", "파란 완장"];
+
+const residentDirectory = Array.from({ length: 48 }, (_, i) => ({
+  id: `R-${1000 + i}`,
+  name: `${lastNames[i % lastNames.length]}${firstNames[(i * 3) % firstNames.length]}${firstNames[(i * 5 + 1) % firstNames.length]}`,
+  apt: `${1 + (i % 9)}0${1 + (i % 5)}`,
+  job: jobs[i % jobs.length],
+  accessory: accessories[i % accessories.length]
+}));
+
 const questionTemplates = [
-  { id: "payment", label: "대가는 정확히 뭔가?" },
-  { id: "route", label: "어디로 가고, 누구랑 가나?" },
-  { id: "history", label: "이전 임무에서 무슨 일이 있었지?" },
-  { id: "intent", label: "왜 지금 이 책이 꼭 필요하지?" },
-  { id: "risk", label: "실패하면 책임은 누가 지나?" },
-  { id: "proof", label: "신뢰할 증거를 내놔." }
+  { id: "id", label: "신분증 확인" },
+  { id: "permit", label: "출입 요청서 확인" },
+  { id: "phone", label: "거주지 전화" },
+  { id: "accessory", label: "액세서리 대조" },
+  { id: "reason", label: "방문 목적 추궁" },
+  { id: "history", label: "이전 방문 기록" }
 ];
 
 const outcomeTable = {
@@ -525,440 +500,104 @@ const outcomeTable = {
   }
 };
 
+
 const state = {
-  day: 1,
-  fuel: 20,
-  food: 20,
-  hunger: 0,
-  threat: 0,
-  logs: [],
-  radio: ["무전기 연결 정상. 외부 신호 약함."],
-  selectedBookId: null,
-  currentVisitor: null,
-  currentRequest: null,
-  askedQuestions: new Set(),
-  questionPanelOpen: false,
+  day: 1, fuel: 20, food: 20, hunger: 0, threat: 0,
+  logs: [], radio: ["무전기 연결 정상. 외부 신호 약함."],
+  selectedBookId: null, currentVisitor: null, currentRequest: null,
+  askedQuestions: new Set(), questionPanelOpen: false,
+  stats: { approved: 0, rejected: 0, emergency: 0, impostersCaught: 0, innocentsLost: 0 },
   lostBooks: new Set()
 };
 
 const el = {
-  day: document.getElementById("day"),
-  tempFuel: document.getElementById("tempFuel"),
-  foodHunger: document.getElementById("foodHunger"),
-  threat: document.getElementById("threat"),
-  visitorName: document.getElementById("visitorName"),
-  visitorTrait: document.getElementById("visitorTrait"),
-  requestText: document.getElementById("requestText"),
-  trustHint: document.getElementById("trustHint"),
-  resultLog: document.getElementById("resultLog"),
-  radioLog: document.getElementById("radioLog"),
-  bookCards: document.getElementById("bookCards"),
-  bookDetail: document.getElementById("bookDetail"),
-  giveBtn: document.getElementById("giveBtn"),
-  rejectBtn: document.getElementById("rejectBtn"),
-  askBtn: document.getElementById("askBtn"),
-  questionPanel: document.getElementById("questionPanel")
+  day: document.getElementById("day"), tempFuel: document.getElementById("tempFuel"), foodHunger: document.getElementById("foodHunger"), threat: document.getElementById("threat"),
+  visitorName: document.getElementById("visitorName"), visitorTrait: document.getElementById("visitorTrait"), requestText: document.getElementById("requestText"),
+  trustHint: document.getElementById("trustHint"), docStatus: document.getElementById("docStatus"), resultLog: document.getElementById("resultLog"), radioLog: document.getElementById("radioLog"),
+  dataBox: document.getElementById("dataBox"), memoPanel: document.getElementById("memoPanel"),
+  bookCards: document.getElementById("bookCards"), bookDetail: document.getElementById("bookDetail"),
+  giveBtn: document.getElementById("giveBtn"), rejectBtn: document.getElementById("rejectBtn"), askBtn: document.getElementById("askBtn"),
+  alertBtn: document.getElementById("alertBtn"), questionPanel: document.getElementById("questionPanel"),
+  screenFlash: document.getElementById("screenFlash"), notification: document.getElementById("notification")
 };
 
-function pick(arr) {
-  return arr[Math.floor(Math.random() * arr.length)];
+const cMap = {"신분증 확인":"id","출입요청서 확인":"permit","거주지 전화":"phone","액세서리 대조":"accessory","방문 목적 추궁":"reason","이전 방문 기록":"history"};
+function pick(arr){return arr[Math.floor(Math.random()*arr.length)]}
+function weightedPick(items){const r=Math.random();let a=0;for(const it of items){a+=it.chance;if(r<=a)return it;}return items[items.length-1];}
+function threatLabel(v){if(v<4)return "안정"; if(v<8)return "긴장"; if(v<12)return "불안"; return "붕괴 직전";}
+
+function notify(msg){el.notification.textContent=msg;el.notification.classList.add('show');setTimeout(()=>el.notification.classList.remove('show'),1000)}
+function flash(){el.screenFlash.classList.add('active');setTimeout(()=>el.screenFlash.classList.remove('active'),140)}
+
+function buildVisitor(){
+  const resident=pick(residentDirectory); const isImposter=Math.random()<0.36;
+  const shownName=isImposter && Math.random()<0.72 ? pick(residentDirectory).name : resident.name;
+  const shownApt=isImposter && Math.random()<0.62 ? pick(residentDirectory).apt : resident.apt;
+  const shownAccessory=isImposter && Math.random()<0.7 ? pick(accessories) : resident.accessory;
+  const idDoc={name:shownName,apt:shownApt,id:resident.id,expiry:1955+Math.floor(Math.random()*3)};
+  const permitDoc={apt:Math.random()<0.12 ? pick(residentDirectory).apt : shownApt, seal:Math.random()>(isImposter?0.45:0.05)};
+  const flags=[]; if(idDoc.name!==resident.name) flags.push('신분증 이름 불일치'); if(idDoc.apt!==resident.apt) flags.push('신분증 거주지 불일치');
+  if(!permitDoc.seal) flags.push('요청서 DDD 봉인 없음'); if(permitDoc.apt!==resident.apt) flags.push('요청서 거주지 불일치'); if(shownAccessory!==resident.accessory) flags.push('액세서리 불일치');
+  return {resident,isImposter,shownName,shownAccessory,idDoc,permitDoc,flags,suspicious:(isImposter?28:7)+flags.length*6+Math.floor(Math.random()*10),trait:`${pick(['경계','초조','침착','과장된 친절','피로'])}한 태도. 직업 주장: ${pick(jobs)}.`};
 }
 
-function weightedPick(items) {
-  const r = Math.random();
-  let acc = 0;
-  for (const item of items) {
-    acc += item.chance;
-    if (r <= acc) return item;
-  }
-  return items[items.length - 1];
-}
+function renderMemoPanel(){const checks=['신분증 확인','출입요청서 확인','거주지 전화','액세서리 대조','방문 목적 추궁','이전 방문 기록']; el.memoPanel.innerHTML=checks.map(c=>`<label><input type="checkbox" disabled ${state.askedQuestions.has(cMap[c])?'checked':''}/> ${c}</label>`).join('');}
+function renderQuestionPanel(){el.questionPanel.innerHTML=''; questionTemplates.forEach(q=>{const b=document.createElement('button'); b.className='q-btn'; b.textContent=q.label; b.disabled=state.askedQuestions.has(q.id); b.onclick=()=>askQuestion(q.id); el.questionPanel.appendChild(b);}); el.questionPanel.style.display=state.questionPanelOpen?'grid':'none'; renderMemoPanel();}
 
-function threatLabel(value) {
-  if (value < 4) return "안정";
-  if (value < 8) return "긴장";
-  if (value < 12) return "불안";
-  return "붕괴 직전";
-}
-
-function renderBooks() {
-  el.bookCards.innerHTML = "";
-  books.forEach((book) => {
-    const btn = document.createElement("button");
-    const lost = state.lostBooks.has(book.id);
-    btn.className = `book-card ${state.selectedBookId === book.id ? "selected" : ""} ${lost ? "lost" : ""}`;
-    btn.disabled = lost;
-    btn.innerHTML = `<strong>${book.name}</strong><br/><small>${book.type}</small>`;
-    btn.onclick = () => {
-      state.selectedBookId = book.id;
-      el.bookDetail.textContent = `${book.name} — ${book.desc}`;
-      renderBooks();
-    };
-    el.bookCards.appendChild(btn);
-  });
-}
-
-function renderLogs() {
-  el.resultLog.innerHTML = "";
-  [...state.logs].slice(-8).reverse().forEach((log) => {
-    const li = document.createElement("li");
-    li.textContent = log;
-    el.resultLog.appendChild(li);
-  });
-
-  el.radioLog.innerHTML = "";
-  [...state.radio].slice(-8).reverse().forEach((r) => {
-    const li = document.createElement("li");
-    li.textContent = r;
-    el.radioLog.appendChild(li);
-  });
-}
-
-function updateHud() {
-  el.day.textContent = `Day ${state.day}`;
-  const temp = Math.max(-10, 8 - Math.floor((20 - state.fuel) / 3));
-  el.tempFuel.textContent = `온도 ${temp}℃ | 연료 ${state.fuel}`;
-  el.foodHunger.textContent = `식량 ${state.food} | 허기 ${state.hunger}`;
-  el.threat.textContent = `위협도 ${state.threat} (${threatLabel(state.threat)})`;
-}
-
-
-function buildVisitor() {
-  const archetype = pick(visitorArchetypes);
-  const role = pick(visitorRoles);
-  const mood = pick(visitorMoods);
-  return {
-    id: archetype.id,
-    name: `${archetype.name} ${role}`,
-    trait: `${archetype.trait} 현재 상태: ${mood}.`,
-    suspicious: archetype.suspicious + Math.floor(Math.random() * 8)
+function askQuestion(type){
+  if(state.askedQuestions.has(type)) return; state.askedQuestions.add(type);
+  const v=state.currentVisitor;
+  const ans={
+    id:`신분증: ${v.idDoc.name} / ${v.idDoc.apt} / 만료 ${v.idDoc.expiry}`,
+    permit:`출입요청서: ${v.permitDoc.apt} / 봉인 ${v.permitDoc.seal?'정상':'누락'}`,
+    phone:`거주지 전화: ${v.isImposter?'세대원이 이미 있다고 응답':'본인 귀가 예정 응답'}`,
+    accessory:`액세서리: 현재 '${v.shownAccessory}' / 주민표 '${v.resident.accessory}'`,
+    reason:`진술: ${state.currentRequest.text}`,
+    history:`기록: ${v.isImposter?'동일 신분 의심 제보 존재':'최근 문제 없는 출입 기록'}`
   };
+  v.suspicious = Math.max(4, v.suspicious + ((v.flags.length && ['id','permit','accessory','phone'].includes(type))?3:-2));
+  el.trustHint.textContent=`신뢰도 단서: 거짓말 확률 추정 ${v.suspicious}%`;
+  el.docStatus.textContent=`문서 상태: ${v.flags.length?v.flags.join(', '):'이상 없음'}`;
+  state.radio.push(`심문: ${ans[type]}`); renderLogs(); renderQuestionPanel();
 }
 
-function renderQuestionPanel() {
-  if (!el.questionPanel) return;
-  el.questionPanel.innerHTML = "";
-  const selected = [...questionTemplates].sort(() => Math.random() - 0.5).slice(0, 4);
+function renderBooks(){el.bookCards.innerHTML=''; books.forEach(book=>{const btn=document.createElement('button'); const lost=state.lostBooks.has(book.id); btn.className=`book-card ${state.selectedBookId===book.id?'selected':''} ${lost?'lost':''}`; btn.disabled=lost; btn.innerHTML=`<strong>${book.name}</strong><br/><small>${book.type} · 위험 ${book.risk}</small>`; btn.onclick=()=>{state.selectedBookId=book.id; const preview=outcomeTable[state.currentRequest.id]?.[book.id]?.[0]?.result||'효과 데이터 없음'; el.bookDetail.textContent=`${book.name} — ${book.desc} | 예상: ${preview}`; renderBooks();}; el.bookCards.appendChild(btn);});}
+function renderLogs(){el.resultLog.innerHTML=[...state.logs].slice(-7).reverse().map(v=>`<li>${v}</li>`).join(''); el.radioLog.innerHTML=[...state.radio].slice(-8).reverse().map(v=>`<li>${v}</li>`).join(''); el.dataBox.textContent=`승인 ${state.stats.approved} | 거부 ${state.stats.rejected} | 비상 ${state.stats.emergency} | 도플처리 ${state.stats.impostersCaught} | 오판 ${state.stats.innocentsLost}`;}
+function updateHud(){el.day.textContent=`Day ${state.day}`; const temp=Math.max(-10,8-Math.floor((20-state.fuel)/3)); el.tempFuel.textContent=`🌡 온도 ${temp}℃  ⛽ 연료 ${state.fuel}`; el.foodHunger.textContent=`🍞 식량 ${state.food}  🧍 허기 ${state.hunger}`; el.threat.textContent=`⚠ 위협도 ${state.threat} (${threatLabel(state.threat)})`;}
 
-  selected.forEach((q) => {
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.className = "q-btn";
-    btn.textContent = q.label;
-    btn.disabled = state.askedQuestions.has(q.id);
-    btn.addEventListener("click", () => askQuestion(q));
-    el.questionPanel.appendChild(btn);
-  });
+function nextVisitor(){state.currentVisitor=buildVisitor(); const r=pick(requests); state.currentRequest={id:r.id,text:pick(requestTextPool[r.id])}; state.selectedBookId=null; state.askedQuestions.clear(); state.questionPanelOpen=false; el.visitorName.textContent=`${state.currentVisitor.shownName} (${state.currentVisitor.resident.apt})`; el.visitorTrait.textContent=state.currentVisitor.trait; el.requestText.textContent=state.currentRequest.text; el.trustHint.textContent=`신뢰도 단서: 거짓말 확률 추정 ${state.currentVisitor.suspicious}%`; el.docStatus.textContent='문서 확인 전'; el.bookDetail.textContent='도서를 선택하세요.'; renderBooks(); renderQuestionPanel(); renderMemoPanel();}
 
-  el.questionPanel.style.display = state.questionPanelOpen ? "grid" : "none";
-}
+function consumeDailyResources(){state.fuel=Math.max(0,state.fuel-2); state.food=Math.max(0,state.food-2); if(state.food===0) state.hunger+=2; if(state.fuel===0) state.hunger+=1;}
+function applyEndingCheck(){if(state.hunger>=15){alert('엔딩: 관리자가 굶주림으로 쓰러졌습니다.');location.reload();} if(state.threat>=18){alert('엔딩: 약탈과 검열이 도서관을 덮쳤습니다.');location.reload();} if(state.day>=25&&state.threat<=7){alert('엔딩: 지식의 성전이 세워졌습니다.');location.reload();}}
+function advanceDay(){state.day+=1; consumeDailyResources(); updateHud(); renderLogs(); nextVisitor(); applyEndingCheck();}
 
-function askQuestion(question) {
-  if (state.askedQuestions.has(question.id)) return;
-  state.askedQuestions.add(question.id);
+function resolveBookDelivery(){const outcomes=outcomeTable[state.currentRequest.id][state.selectedBookId]; const o=weightedPick(outcomes); state.logs.push(`Day ${state.day}: ${o.result}`); state.food=Math.max(0,state.food+o.food); state.fuel=Math.max(0,state.fuel+o.fuel); state.threat=Math.max(0,state.threat+o.threat); if(o.death){state.lostBooks.add(state.selectedBookId); state.radio.push(`무전: 요청자 사망. '${books.find(b=>b.id===state.selectedBookId).name}' 소실.`);} else state.radio.push('무전: 대가 도착, 거래 완료.'); if(state.lostBooks.size===books.length){alert('엔딩: 모든 책이 소실되었습니다.');location.reload();}}
+function approveVisitor(){if(!state.selectedBookId){alert('먼저 도서를 선택하세요.');return;} const v=state.currentVisitor; state.stats.approved+=1; if(v.isImposter && v.flags.length>=2){state.threat+=3; state.logs.push(`Day ${state.day}: 도플갱어를 승인했습니다. 내부 침투 발생.`);} resolveBookDelivery(); flash(); advanceDay();}
+function rejectVisitor(){const v=state.currentVisitor; state.stats.rejected+=1; if(!v.isImposter){state.stats.innocentsLost+=1; state.threat+=2; state.food=Math.max(0,state.food-1); state.logs.push(`Day ${state.day}: 정상 주민을 돌려보내 불만이 폭증했습니다.`);} else {state.stats.impostersCaught+=1; state.threat=Math.max(0,state.threat-1); state.logs.push(`Day ${state.day}: 위장 방문자를 거부했습니다.`);} state.radio.push('무전: 출입 거부 처리 완료.'); flash(); advanceDay();}
+function emergencyCall(){const v=state.currentVisitor; state.stats.emergency+=1; if(v.isImposter){state.stats.impostersCaught+=1; state.threat=Math.max(0,state.threat-2); state.logs.push(`Day ${state.day}: D.D.D. 호출 성공. 위장체 제거.`);} else {state.stats.innocentsLost+=1; state.threat+=3; state.food=Math.max(0,state.food-1); state.logs.push(`Day ${state.day}: 오판으로 주민이 사망했습니다.`);} state.radio.push('긴급 무전: D.D.D. 출동. 호출은 취소 불가.'); notify('비상 호출 전송됨'); flash(); advanceDay();}
+function toggleQuestionPanel(){state.questionPanelOpen=!state.questionPanelOpen; state.radio.push(state.questionPanelOpen?'심문 도구를 펼쳤습니다.':'심문 도구를 닫았습니다.'); renderQuestionPanel(); renderLogs();}
 
-  const visitor = state.currentVisitor;
-  const requestId = state.currentRequest.id;
-  const answerByQuestion = {
-    payment: `답변: ${visitor.name}이(가) 식량/연료/정보 중 현재 가진 것을 선지급하진 못하지만 임무 성공 후 반드시 지급하겠다고 했다.`,
-    route: `답변: ${requestId} 관련 거점까지 우회 경로를 택하고 3~5명 규모로 이동한다고 말했다.`,
-    history: `답변: 지난 임무에서 손실이 있었고 그 실패를 반복하지 않기 위해 이번엔 책을 요청했다고 밝혔다.`,
-    intent: `답변: 지금 필요한 건 물자보다 지식이라며 '${state.currentRequest.text}'를 다시 강조했다.`,
-    risk: `답변: 실패 시 요청자가 책임을 지며, 가능하면 기록본을 회수해 반환하겠다고 했다.`,
-    proof: `답변: 지도 조각과 이전 거래 기록 일부를 보여주며 신뢰를 요구했다.`
-  };
+el.giveBtn.addEventListener('click', approveVisitor);
+el.rejectBtn.addEventListener('click', rejectVisitor);
+el.askBtn.addEventListener('click', toggleQuestionPanel);
+el.alertBtn.addEventListener('click', emergencyCall);
 
-  const suspicionDelta = visitor.id === "scammer" || visitor.id === "smuggler" ? 2 : -1;
-  state.currentVisitor.suspicious = Math.max(5, state.currentVisitor.suspicious + suspicionDelta);
-  el.trustHint.textContent = `신뢰도 단서: 거짓말 확률 추정 ${state.currentVisitor.suspicious}%`;
-  state.radio.push(answerByQuestion[question.id]);
-  renderLogs();
-  renderQuestionPanel();
-}
+updateHud(); renderBooks(); renderLogs(); nextVisitor();
 
-function nextVisitor() {
-  state.currentVisitor = buildVisitor();
-  const requestBase = pick(requests);
-  state.currentRequest = {
-    id: requestBase.id,
-    text: pick(requestTextPool[requestBase.id])
-  };
-  state.selectedBookId = null;
-  state.askedQuestions.clear();
-  state.questionPanelOpen = false;
-
-  el.visitorName.textContent = state.currentVisitor.name;
-  el.visitorTrait.textContent = state.currentVisitor.trait;
-  el.requestText.textContent = state.currentRequest.text;
-  el.trustHint.textContent = `신뢰도 단서: 거짓말 확률 추정 ${state.currentVisitor.suspicious}%`;
-  el.bookDetail.textContent = "도서를 선택하세요.";
-  renderBooks();
-  renderQuestionPanel();
-}
-
-function consumeDailyResources() {
-  state.fuel = Math.max(0, state.fuel - 2);
-  state.food = Math.max(0, state.food - 2);
-  if (state.food === 0) state.hunger += 2;
-  if (state.fuel === 0) state.hunger += 1;
-}
-
-function applyEndingCheck() {
-  if (state.hunger >= 15) {
-    alert("엔딩: 관리자가 굶주림으로 쓰러졌습니다. 지식의 불이 꺼졌습니다.");
-    location.reload();
-  }
-  if (state.threat >= 18) {
-    alert("엔딩: 약탈과 검열이 도서관을 덮쳤습니다. 서고는 잿더미가 되었습니다.");
-    location.reload();
-  }
-  if (state.day >= 20 && state.threat <= 7) {
-    alert("엔딩: 지식의 성전이 세워졌습니다. 생존자들이 도서관을 중심으로 재건을 시작합니다.");
-    location.reload();
-  }
-}
-
-function advanceDay() {
-  state.day += 1;
-  consumeDailyResources();
-  updateHud();
-  renderLogs();
-  nextVisitor();
-  applyEndingCheck();
-}
-
-function giveBook() {
-  if (!state.selectedBookId) {
-    alert("먼저 도서를 선택하세요.");
-    return;
-  }
-
-  const outcomes = outcomeTable[state.currentRequest.id][state.selectedBookId];
-  const pickedOutcome = weightedPick(outcomes);
-  state.logs.push(`Day ${state.day}: ${pickedOutcome.result}`);
-  state.food = Math.max(0, state.food + pickedOutcome.food);
-  state.fuel = Math.max(0, state.fuel + pickedOutcome.fuel);
-  state.threat = Math.max(0, state.threat + pickedOutcome.threat);
-
-  if (pickedOutcome.death) {
-    state.lostBooks.add(state.selectedBookId);
-    state.radio.push(`무전: 요청자 사망 확인. '${books.find((b) => b.id === state.selectedBookId).name}' 분실.`);
-  } else {
-    state.radio.push("무전: 생존자 신호 수신. 대가가 도착했습니다.");
-  }
-
-  if (state.lostBooks.size === books.length) {
-    alert("엔딩: 모든 책이 사라졌습니다. 지식의 소실로 문명이 멈췄습니다.");
-    location.reload();
-    return;
-  }
-
-  advanceDay();
-}
-
-function rejectVisitor() {
-  state.logs.push(`Day ${state.day}: 요청을 거절했습니다. 방문자는 빈손으로 떠났습니다.`);
-  state.threat += 1;
-  state.radio.push("무전: 거절 소문이 퍼져 도서관 평판이 하락 중.");
-  advanceDay();
-}
-
-function askMore() {
-  state.questionPanelOpen = !state.questionPanelOpen;
-  renderQuestionPanel();
-  state.radio.push(state.questionPanelOpen ? "무전: 심문 질문 목록을 펼쳤습니다." : "무전: 심문 질문 목록을 닫았습니다.");
-  renderLogs();
-}
-
-el.giveBtn.addEventListener("click", giveBook);
-el.rejectBtn.addEventListener("click", rejectVisitor);
-el.askBtn.addEventListener("click", askMore);
-
-updateHud();
-renderBooks();
-renderLogs();
-nextVisitor();
-
-// --- Quality layer: motion, FX, and synthesized audio (no external assets) ---
-(function setupQualityLayer() {
-  const fxCanvas = document.getElementById("fxCanvas");
-  const flashEl = document.getElementById("screenFlash");
-  const noteEl = document.getElementById("notification");
-  const audioBtn = document.getElementById("audioBtn");
-
-  const audio = {
-    enabled: false,
-    ctx: null,
-    noiseNode: null,
-    ensure() {
-      if (!this.ctx) this.ctx = new (window.AudioContext || window.webkitAudioContext)();
-      if (this.ctx.state === "suspended") this.ctx.resume();
-    },
-    tone(freq, duration = 0.08, type = "triangle", gainValue = 0.03) {
-      if (!this.enabled) return;
-      this.ensure();
-      const o = this.ctx.createOscillator();
-      const g = this.ctx.createGain();
-      o.type = type;
-      o.frequency.setValueAtTime(freq, this.ctx.currentTime);
-      g.gain.setValueAtTime(0.0001, this.ctx.currentTime);
-      g.gain.exponentialRampToValueAtTime(gainValue, this.ctx.currentTime + 0.01);
-      g.gain.exponentialRampToValueAtTime(0.0001, this.ctx.currentTime + duration);
-      o.connect(g).connect(this.ctx.destination);
-      o.start();
-      o.stop(this.ctx.currentTime + duration);
-    },
-    startAmbient() {
-      if (!this.enabled || this.noiseNode) return;
-      this.ensure();
-      const bufferSize = 2 * this.ctx.sampleRate;
-      const noiseBuffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
-      const output = noiseBuffer.getChannelData(0);
-      for (let i = 0; i < bufferSize; i += 1) output[i] = (Math.random() * 2 - 1) * 0.2;
-
-      const whiteNoise = this.ctx.createBufferSource();
-      whiteNoise.buffer = noiseBuffer;
-      whiteNoise.loop = true;
-
-      const bandpass = this.ctx.createBiquadFilter();
-      bandpass.type = "bandpass";
-      bandpass.frequency.value = 420;
-      bandpass.Q.value = 0.9;
-
-      const gain = this.ctx.createGain();
-      gain.gain.value = 0.018;
-
-      whiteNoise.connect(bandpass).connect(gain).connect(this.ctx.destination);
-      whiteNoise.start();
-      this.noiseNode = whiteNoise;
-    },
-    stopAmbient() {
-      if (!this.noiseNode) return;
-      this.noiseNode.stop();
-      this.noiseNode.disconnect();
-      this.noiseNode = null;
-    }
-  };
-
-  function notify(msg) {
-    noteEl.textContent = msg;
-    noteEl.classList.add("show");
-    setTimeout(() => noteEl.classList.remove("show"), 1200);
-  }
-
-  function pulseFlash() {
-    flashEl.classList.add("active");
-    setTimeout(() => flashEl.classList.remove("active"), 170);
-  }
-
-  function shakePanel() {
-    const center = document.querySelector(".center-panel");
-    center.classList.add("shake");
-    setTimeout(() => center.classList.remove("shake"), 260);
-  }
-
-  function typeAnim(elm) {
-    elm.classList.remove("type-in");
-    void elm.offsetWidth;
-    elm.classList.add("type-in");
-  }
-
-  const observer = new MutationObserver(() => {
-    typeAnim(document.getElementById("requestText"));
-    typeAnim(document.getElementById("visitorName"));
-  });
-  observer.observe(document.getElementById("requestText"), { childList: true });
-
-  document.body.addEventListener(
-    "click",
-    (e) => {
-      if (e.target.closest("button")) audio.tone(270, 0.05, "triangle", 0.028);
-    },
-    true
-  );
-
-  document.getElementById("giveBtn").addEventListener("click", () => {
-    pulseFlash();
-    if (state.selectedBookId) {
-      const latest = state.logs[state.logs.length - 1] || "";
-      if (latest.includes("사망") || latest.includes("소실")) {
-        shakePanel();
-        audio.tone(120, 0.15, "sawtooth", 0.04);
-      } else {
-        audio.tone(420, 0.12, "triangle", 0.04);
-      }
-    }
-  });
-
-  document.getElementById("rejectBtn").addEventListener("click", () => {
-    shakePanel();
-    audio.tone(160, 0.1, "square", 0.03);
-  });
-
-  document.getElementById("askBtn").addEventListener("click", () => {
-    audio.tone(520, 0.09, "triangle", 0.028);
-  });
-
-  audioBtn.addEventListener("click", () => {
-    audio.enabled = !audio.enabled;
-    if (audio.enabled) {
-      audio.startAmbient();
-      audioBtn.textContent = "🔊 사운드 ON";
-      notify("환경음 활성화");
-    } else {
-      audio.stopAmbient();
-      audioBtn.textContent = "🔇 사운드 OFF";
-      notify("환경음 비활성화");
-    }
-  });
-
-  // particle dust
-  const ctx = fxCanvas.getContext("2d");
-  const particles = [];
-  const maxParticles = 70;
-
-  function resize() {
-    fxCanvas.width = window.innerWidth;
-    fxCanvas.height = window.innerHeight;
-  }
-
-  function spawn() {
-    if (particles.length > maxParticles) return;
-    particles.push({
-      x: Math.random() * fxCanvas.width,
-      y: Math.random() * fxCanvas.height,
-      r: Math.random() * 2 + 0.6,
-      vx: (Math.random() - 0.5) * 0.12,
-      vy: -Math.random() * 0.22 - 0.04,
-      a: Math.random() * 0.35 + 0.06
-    });
-  }
-
-  function tick() {
-    ctx.clearRect(0, 0, fxCanvas.width, fxCanvas.height);
-    if (Math.random() < 0.75) spawn();
-
-    for (let i = particles.length - 1; i >= 0; i -= 1) {
-      const p = particles[i];
-      p.x += p.vx;
-      p.y += p.vy;
-      p.a *= 0.996;
-      ctx.beginPath();
-      ctx.fillStyle = `rgba(227, 188, 137, ${p.a})`;
-      ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-      ctx.fill();
-      if (p.y < -10 || p.a < 0.02) particles.splice(i, 1);
-    }
-
-    requestAnimationFrame(tick);
-  }
-
-  resize();
-  tick();
-  window.addEventListener("resize", resize);
+(function setupQualityLayer(){
+  const canvas=document.getElementById('fxCanvas'); const ctx=canvas.getContext('2d');
+  const audioBtn=document.getElementById('audioBtn'); let audioOn=false; let ac; let ambient;
+  const parts=[];
+  const tone=(f,d=0.07,t='triangle',g=0.03)=>{if(!audioOn)return; ac=ac||new (window.AudioContext||window.webkitAudioContext)(); if(ac.state==='suspended')ac.resume(); const o=ac.createOscillator(); const gain=ac.createGain(); o.type=t; o.frequency.value=f; gain.gain.value=0.0001; gain.gain.exponentialRampToValueAtTime(g,ac.currentTime+0.01); gain.gain.exponentialRampToValueAtTime(0.0001,ac.currentTime+d); o.connect(gain).connect(ac.destination); o.start(); o.stop(ac.currentTime+d)};
+  function toggleAmbient(){audioOn=!audioOn; if(audioOn){ac=ac||new (window.AudioContext||window.webkitAudioContext)(); const b=ac.createBuffer(1,2*ac.sampleRate,ac.sampleRate); const ch=b.getChannelData(0); for(let i=0;i<ch.length;i++) ch[i]=(Math.random()*2-1)*0.18; ambient=ac.createBufferSource(); ambient.buffer=b; ambient.loop=true; const f=ac.createBiquadFilter(); f.type='bandpass'; f.frequency.value=380; const g=ac.createGain(); g.gain.value=.018; ambient.connect(f).connect(g).connect(ac.destination); ambient.start(); audioBtn.textContent='🔊 사운드 ON'; notify('환경음 활성화');} else {if(ambient){ambient.stop(); ambient.disconnect(); ambient=null;} audioBtn.textContent='🔇 사운드 OFF'; notify('환경음 비활성화');}}
+  audioBtn.addEventListener('click',toggleAmbient);
+  document.body.addEventListener('click',e=>{if(e.target.closest('button')) tone(260,0.05,'triangle',0.026)},true);
+  const resize=()=>{canvas.width=innerWidth; canvas.height=innerHeight};
+  const tick=()=>{ctx.clearRect(0,0,canvas.width,canvas.height); if(Math.random()<.7&&parts.length<90) parts.push({x:Math.random()*canvas.width,y:Math.random()*canvas.height,r:Math.random()*2+.6,vx:(Math.random()-.5)*.15,vy:-Math.random()*.25-.05,a:Math.random()*.35+.08}); for(let i=parts.length-1;i>=0;i--){const p=parts[i]; p.x+=p.vx;p.y+=p.vy;p.a*=.996; ctx.fillStyle=`rgba(227,188,137,${p.a})`; ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,Math.PI*2); ctx.fill(); if(p.y<-10||p.a<.02) parts.splice(i,1);} requestAnimationFrame(tick)};
+  resize(); tick(); addEventListener('resize',resize);
 })();
 
 </script>
-    <!-- built: 2026-02-13T12:08:57.430Z -->
+    <!-- built: 2026-02-13T12:26:03.380Z -->
   </body>
 </html>

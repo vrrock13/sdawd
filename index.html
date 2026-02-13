@@ -10,7 +10,6 @@
     <canvas id="fxCanvas" aria-hidden="true"></canvas>
     <div id="screenFlash" aria-hidden="true"></div>
     <div id="notification" aria-live="polite"></div>
-
     <div class="grain" aria-hidden="true"></div>
 
     <div class="game-shell">
@@ -23,13 +22,11 @@
 
       <main class="main-grid">
         <aside class="panel left-panel frame">
-          <h2>어제의 결과</h2>
-          <div class="widget id-sheet">
-            <div class="dot-list" aria-hidden="true"></div>
-            <div class="lines" aria-hidden="true"></div>
-          </div>
+          <h2>심사 체크리스트</h2>
+          <div id="memoPanel" class="widget memo-panel"></div>
+          <h3>어제의 결과</h3>
           <ul id="resultLog"></ul>
-          <button class="big-alert" type="button" aria-label="alert"></button>
+          <button id="alertBtn" class="big-alert" type="button" aria-label="DDD 비상 호출"></button>
         </aside>
 
         <section class="panel center-panel frame">
@@ -43,6 +40,7 @@
                   <h2 id="visitorName">방문자</h2>
                   <p id="visitorTrait" class="sub"></p>
                   <p id="requestText"></p>
+                  <p id="docStatus" class="sub"></p>
                 </div>
               </div>
             </div>
@@ -58,12 +56,8 @@
             <h2>무전기 / 사건 경보</h2>
             <button id="audioBtn" class="mini-btn" type="button">🔇 사운드 OFF</button>
           </div>
-          <div class="widget calendar" aria-hidden="true">
-            <strong>FEB 1955</strong>
-            <div class="calendar-grid"></div>
-          </div>
+          <div id="dataBox" class="widget data-box">검문 통계 로딩중...</div>
           <ul id="radioLog"></ul>
-          <div class="widget data-box" aria-hidden="true">DATA</div>
         </aside>
       </main>
 
@@ -75,9 +69,9 @@
         <div id="bookCards" class="book-cards"></div>
         <div id="bookDetail" class="book-detail">도서를 선택하세요.</div>
         <div class="actions">
-          <button id="giveBtn">전달</button>
-          <button id="rejectBtn">거절</button>
-          <button id="askBtn">질문 선택</button>
+          <button id="giveBtn">입장 승인 + 도서 전달</button>
+          <button id="rejectBtn">입장 거부</button>
+          <button id="askBtn">질문/검사</button>
         </div>
       </footer>
     </div>
