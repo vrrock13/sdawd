@@ -20,9 +20,47 @@ body {
   font-family: "Pretendard", "Apple SD Gothic Neo", sans-serif;
   background: radial-gradient(circle at top, #2a241e, var(--bg));
   color: var(--ink);
+  overflow-x: hidden;
 }
 
+#fxCanvas {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: .5;
+}
+
+#screenFlash {
+  position: fixed;
+  inset: 0;
+  z-index: 4;
+  pointer-events: none;
+  background: radial-gradient(circle, rgba(244,202,125,.28), rgba(0,0,0,0));
+  opacity: 0;
+  transition: opacity .25s ease;
+}
+#screenFlash.active { opacity: 1; }
+
+#notification {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  z-index: 5;
+  background: rgba(15, 13, 11, .92);
+  border: 1px solid #745f43;
+  color: var(--ink);
+  padding: 10px 12px;
+  border-radius: 8px;
+  transform: translateY(20px);
+  opacity: 0;
+  transition: .25s ease;
+}
+#notification.show { transform: translateY(0); opacity: 1; }
+
 .game-shell {
+  position: relative;
+  z-index: 1;
   max-width: 1200px;
   margin: 0 auto;
   min-height: 100vh;
@@ -38,10 +76,11 @@ body {
   gap: 8px;
 }
 .hud > div {
-  background: var(--panel);
+  background: linear-gradient(180deg, #26201a, #1a1613);
   border: 1px solid #3b322a;
   padding: 10px;
   text-align: center;
+  box-shadow: 0 0 0 1px #000 inset, 0 8px 20px rgba(0,0,0,.2);
 }
 
 .main-grid {
@@ -51,10 +90,19 @@ body {
 }
 
 .panel {
-  background: var(--panel);
+  background: linear-gradient(180deg, rgba(31, 27, 23, .96), rgba(22, 19, 16, .96));
   border: 1px solid #3b322a;
   padding: 10px;
   min-height: 320px;
+  box-shadow: 0 12px 24px rgba(0,0,0,.25);
+  backdrop-filter: blur(1px);
+}
+
+.panel-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
 }
 
 .center-panel {
@@ -74,10 +122,31 @@ body {
   width: 150px;
   height: 220px;
   margin: auto;
-  background: linear-gradient(#4d453d, #27221e);
+  background: linear-gradient(#5a5046, #27221e);
   border-radius: 100px 100px 30px 30px;
   filter: brightness(0.9);
-  box-shadow: inset 0 0 40px rgba(0,0,0,.45);
+  box-shadow: inset 0 0 40px rgba(0,0,0,.45), 0 0 16px rgba(220,180,120,.14);
+  animation: breathe 2.5s ease-in-out infinite;
+}
+
+@keyframes breathe {
+  0%, 100% { transform: translateY(0) scale(1); }
+  50% { transform: translateY(-4px) scale(1.02); }
+}
+
+.visitor-info h2,
+.visitor-info p,
+.hint-box p,
+#bookDetail {
+  transition: opacity .2s ease, transform .2s ease;
+}
+
+.type-in {
+  animation: typeIn .25s ease;
+}
+@keyframes typeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 .sub { color: var(--dim); }
@@ -95,8 +164,14 @@ ul {
   gap: 8px;
 }
 
+li { animation: fadeList .22s ease; }
+@keyframes fadeList {
+  from { opacity: 0; transform: translateX(-6px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
 .desk {
-  background: #171411;
+  background: linear-gradient(180deg, #1d1813, #171411);
   border: 1px solid #3b322a;
   padding: 10px;
 }
@@ -108,16 +183,23 @@ ul {
 }
 
 .book-card {
-  background: #2a231d;
+  background: linear-gradient(180deg, #32271d, #251f19);
   border: 1px solid #584937;
   color: var(--ink);
   padding: 8px;
   cursor: pointer;
   text-align: left;
+  transition: transform .12s ease, box-shadow .2s ease;
+}
+
+.book-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 12px rgba(0,0,0,.2);
 }
 
 .book-card.selected {
   outline: 2px solid var(--accent);
+  box-shadow: 0 0 18px rgba(203,154,90,.35);
 }
 
 .book-card.lost {
@@ -145,11 +227,26 @@ button {
   border: 1px solid #6d5a45;
   padding: 10px 14px;
   cursor: pointer;
+  transition: transform .12s ease, filter .16s ease;
 }
-button:hover { filter: brightness(1.1); }
+button:hover { filter: brightness(1.13); transform: translateY(-1px); }
+button:active { transform: translateY(1px); }
 
 #giveBtn { border-color: var(--accent); }
 #rejectBtn { border-color: var(--warn); }
+
+.mini-btn {
+  padding: 6px 8px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.shake { animation: shake .26s linear; }
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-4px); }
+  75% { transform: translateX(4px); }
+}
 
 @media (max-width: 1000px) {
   .main-grid { grid-template-columns: 1fr; }
@@ -160,6 +257,10 @@ button:hover { filter: brightness(1.1); }
 </style>
   </head>
   <body>
+    <canvas id="fxCanvas" aria-hidden="true"></canvas>
+    <div id="screenFlash" aria-hidden="true"></div>
+    <div id="notification" aria-live="polite"></div>
+
     <div class="game-shell">
       <header class="hud">
         <div id="day">Day 1</div>
@@ -189,7 +290,10 @@ button:hover { filter: brightness(1.1); }
         </section>
 
         <aside class="panel right-panel">
-          <h2>무전기 / 사건 경보</h2>
+          <div class="panel-head">
+            <h2>무전기 / 사건 경보</h2>
+            <button id="audioBtn" class="mini-btn" type="button">🔇 사운드 OFF</button>
+          </div>
           <ul id="radioLog"></ul>
         </aside>
       </main>
@@ -532,7 +636,186 @@ renderBooks();
 renderLogs();
 nextVisitor();
 
+// --- Quality layer: motion, FX, and synthesized audio (no external assets) ---
+(function setupQualityLayer() {
+  const fxCanvas = document.getElementById("fxCanvas");
+  const flashEl = document.getElementById("screenFlash");
+  const noteEl = document.getElementById("notification");
+  const audioBtn = document.getElementById("audioBtn");
+
+  const audio = {
+    enabled: false,
+    ctx: null,
+    noiseNode: null,
+    ensure() {
+      if (!this.ctx) this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+      if (this.ctx.state === "suspended") this.ctx.resume();
+    },
+    tone(freq, duration = 0.08, type = "triangle", gainValue = 0.03) {
+      if (!this.enabled) return;
+      this.ensure();
+      const o = this.ctx.createOscillator();
+      const g = this.ctx.createGain();
+      o.type = type;
+      o.frequency.setValueAtTime(freq, this.ctx.currentTime);
+      g.gain.setValueAtTime(0.0001, this.ctx.currentTime);
+      g.gain.exponentialRampToValueAtTime(gainValue, this.ctx.currentTime + 0.01);
+      g.gain.exponentialRampToValueAtTime(0.0001, this.ctx.currentTime + duration);
+      o.connect(g).connect(this.ctx.destination);
+      o.start();
+      o.stop(this.ctx.currentTime + duration);
+    },
+    startAmbient() {
+      if (!this.enabled || this.noiseNode) return;
+      this.ensure();
+      const bufferSize = 2 * this.ctx.sampleRate;
+      const noiseBuffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+      const output = noiseBuffer.getChannelData(0);
+      for (let i = 0; i < bufferSize; i += 1) output[i] = (Math.random() * 2 - 1) * 0.2;
+
+      const whiteNoise = this.ctx.createBufferSource();
+      whiteNoise.buffer = noiseBuffer;
+      whiteNoise.loop = true;
+
+      const bandpass = this.ctx.createBiquadFilter();
+      bandpass.type = "bandpass";
+      bandpass.frequency.value = 420;
+      bandpass.Q.value = 0.9;
+
+      const gain = this.ctx.createGain();
+      gain.gain.value = 0.018;
+
+      whiteNoise.connect(bandpass).connect(gain).connect(this.ctx.destination);
+      whiteNoise.start();
+      this.noiseNode = whiteNoise;
+    },
+    stopAmbient() {
+      if (!this.noiseNode) return;
+      this.noiseNode.stop();
+      this.noiseNode.disconnect();
+      this.noiseNode = null;
+    }
+  };
+
+  function notify(msg) {
+    noteEl.textContent = msg;
+    noteEl.classList.add("show");
+    setTimeout(() => noteEl.classList.remove("show"), 1200);
+  }
+
+  function pulseFlash() {
+    flashEl.classList.add("active");
+    setTimeout(() => flashEl.classList.remove("active"), 170);
+  }
+
+  function shakePanel() {
+    const center = document.querySelector(".center-panel");
+    center.classList.add("shake");
+    setTimeout(() => center.classList.remove("shake"), 260);
+  }
+
+  function typeAnim(elm) {
+    elm.classList.remove("type-in");
+    void elm.offsetWidth;
+    elm.classList.add("type-in");
+  }
+
+  const observer = new MutationObserver(() => {
+    typeAnim(document.getElementById("requestText"));
+    typeAnim(document.getElementById("visitorName"));
+  });
+  observer.observe(document.getElementById("requestText"), { childList: true });
+
+  document.body.addEventListener(
+    "click",
+    (e) => {
+      if (e.target.closest("button")) audio.tone(270, 0.05, "triangle", 0.028);
+    },
+    true
+  );
+
+  document.getElementById("giveBtn").addEventListener("click", () => {
+    pulseFlash();
+    if (state.selectedBookId) {
+      const latest = state.logs[state.logs.length - 1] || "";
+      if (latest.includes("사망") || latest.includes("소실")) {
+        shakePanel();
+        audio.tone(120, 0.15, "sawtooth", 0.04);
+      } else {
+        audio.tone(420, 0.12, "triangle", 0.04);
+      }
+    }
+  });
+
+  document.getElementById("rejectBtn").addEventListener("click", () => {
+    shakePanel();
+    audio.tone(160, 0.1, "square", 0.03);
+  });
+
+  document.getElementById("askBtn").addEventListener("click", () => {
+    audio.tone(520, 0.09, "triangle", 0.028);
+  });
+
+  audioBtn.addEventListener("click", () => {
+    audio.enabled = !audio.enabled;
+    if (audio.enabled) {
+      audio.startAmbient();
+      audioBtn.textContent = "🔊 사운드 ON";
+      notify("환경음 활성화");
+    } else {
+      audio.stopAmbient();
+      audioBtn.textContent = "🔇 사운드 OFF";
+      notify("환경음 비활성화");
+    }
+  });
+
+  // particle dust
+  const ctx = fxCanvas.getContext("2d");
+  const particles = [];
+  const maxParticles = 70;
+
+  function resize() {
+    fxCanvas.width = window.innerWidth;
+    fxCanvas.height = window.innerHeight;
+  }
+
+  function spawn() {
+    if (particles.length > maxParticles) return;
+    particles.push({
+      x: Math.random() * fxCanvas.width,
+      y: Math.random() * fxCanvas.height,
+      r: Math.random() * 2 + 0.6,
+      vx: (Math.random() - 0.5) * 0.12,
+      vy: -Math.random() * 0.22 - 0.04,
+      a: Math.random() * 0.35 + 0.06
+    });
+  }
+
+  function tick() {
+    ctx.clearRect(0, 0, fxCanvas.width, fxCanvas.height);
+    if (Math.random() < 0.75) spawn();
+
+    for (let i = particles.length - 1; i >= 0; i -= 1) {
+      const p = particles[i];
+      p.x += p.vx;
+      p.y += p.vy;
+      p.a *= 0.996;
+      ctx.beginPath();
+      ctx.fillStyle = `rgba(227, 188, 137, ${p.a})`;
+      ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+      ctx.fill();
+      if (p.y < -10 || p.a < 0.02) particles.splice(i, 1);
+    }
+
+    requestAnimationFrame(tick);
+  }
+
+  resize();
+  tick();
+  window.addEventListener("resize", resize);
+})();
+
 </script>
-    <!-- built: 2026-02-13T11:48:14.156Z -->
+    <!-- built: 2026-02-13T11:59:50.515Z -->
   </body>
 </html>

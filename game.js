@@ -322,3 +322,182 @@ updateHud();
 renderBooks();
 renderLogs();
 nextVisitor();
+
+// --- Quality layer: motion, FX, and synthesized audio (no external assets) ---
+(function setupQualityLayer() {
+  const fxCanvas = document.getElementById("fxCanvas");
+  const flashEl = document.getElementById("screenFlash");
+  const noteEl = document.getElementById("notification");
+  const audioBtn = document.getElementById("audioBtn");
+
+  const audio = {
+    enabled: false,
+    ctx: null,
+    noiseNode: null,
+    ensure() {
+      if (!this.ctx) this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+      if (this.ctx.state === "suspended") this.ctx.resume();
+    },
+    tone(freq, duration = 0.08, type = "triangle", gainValue = 0.03) {
+      if (!this.enabled) return;
+      this.ensure();
+      const o = this.ctx.createOscillator();
+      const g = this.ctx.createGain();
+      o.type = type;
+      o.frequency.setValueAtTime(freq, this.ctx.currentTime);
+      g.gain.setValueAtTime(0.0001, this.ctx.currentTime);
+      g.gain.exponentialRampToValueAtTime(gainValue, this.ctx.currentTime + 0.01);
+      g.gain.exponentialRampToValueAtTime(0.0001, this.ctx.currentTime + duration);
+      o.connect(g).connect(this.ctx.destination);
+      o.start();
+      o.stop(this.ctx.currentTime + duration);
+    },
+    startAmbient() {
+      if (!this.enabled || this.noiseNode) return;
+      this.ensure();
+      const bufferSize = 2 * this.ctx.sampleRate;
+      const noiseBuffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+      const output = noiseBuffer.getChannelData(0);
+      for (let i = 0; i < bufferSize; i += 1) output[i] = (Math.random() * 2 - 1) * 0.2;
+
+      const whiteNoise = this.ctx.createBufferSource();
+      whiteNoise.buffer = noiseBuffer;
+      whiteNoise.loop = true;
+
+      const bandpass = this.ctx.createBiquadFilter();
+      bandpass.type = "bandpass";
+      bandpass.frequency.value = 420;
+      bandpass.Q.value = 0.9;
+
+      const gain = this.ctx.createGain();
+      gain.gain.value = 0.018;
+
+      whiteNoise.connect(bandpass).connect(gain).connect(this.ctx.destination);
+      whiteNoise.start();
+      this.noiseNode = whiteNoise;
+    },
+    stopAmbient() {
+      if (!this.noiseNode) return;
+      this.noiseNode.stop();
+      this.noiseNode.disconnect();
+      this.noiseNode = null;
+    }
+  };
+
+  function notify(msg) {
+    noteEl.textContent = msg;
+    noteEl.classList.add("show");
+    setTimeout(() => noteEl.classList.remove("show"), 1200);
+  }
+
+  function pulseFlash() {
+    flashEl.classList.add("active");
+    setTimeout(() => flashEl.classList.remove("active"), 170);
+  }
+
+  function shakePanel() {
+    const center = document.querySelector(".center-panel");
+    center.classList.add("shake");
+    setTimeout(() => center.classList.remove("shake"), 260);
+  }
+
+  function typeAnim(elm) {
+    elm.classList.remove("type-in");
+    void elm.offsetWidth;
+    elm.classList.add("type-in");
+  }
+
+  const observer = new MutationObserver(() => {
+    typeAnim(document.getElementById("requestText"));
+    typeAnim(document.getElementById("visitorName"));
+  });
+  observer.observe(document.getElementById("requestText"), { childList: true });
+
+  document.body.addEventListener(
+    "click",
+    (e) => {
+      if (e.target.closest("button")) audio.tone(270, 0.05, "triangle", 0.028);
+    },
+    true
+  );
+
+  document.getElementById("giveBtn").addEventListener("click", () => {
+    pulseFlash();
+    if (state.selectedBookId) {
+      const latest = state.logs[state.logs.length - 1] || "";
+      if (latest.includes("사망") || latest.includes("소실")) {
+        shakePanel();
+        audio.tone(120, 0.15, "sawtooth", 0.04);
+      } else {
+        audio.tone(420, 0.12, "triangle", 0.04);
+      }
+    }
+  });
+
+  document.getElementById("rejectBtn").addEventListener("click", () => {
+    shakePanel();
+    audio.tone(160, 0.1, "square", 0.03);
+  });
+
+  document.getElementById("askBtn").addEventListener("click", () => {
+    audio.tone(520, 0.09, "triangle", 0.028);
+  });
+
+  audioBtn.addEventListener("click", () => {
+    audio.enabled = !audio.enabled;
+    if (audio.enabled) {
+      audio.startAmbient();
+      audioBtn.textContent = "🔊 사운드 ON";
+      notify("환경음 활성화");
+    } else {
+      audio.stopAmbient();
+      audioBtn.textContent = "🔇 사운드 OFF";
+      notify("환경음 비활성화");
+    }
+  });
+
+  // particle dust
+  const ctx = fxCanvas.getContext("2d");
+  const particles = [];
+  const maxParticles = 70;
+
+  function resize() {
+    fxCanvas.width = window.innerWidth;
+    fxCanvas.height = window.innerHeight;
+  }
+
+  function spawn() {
+    if (particles.length > maxParticles) return;
+    particles.push({
+      x: Math.random() * fxCanvas.width,
+      y: Math.random() * fxCanvas.height,
+      r: Math.random() * 2 + 0.6,
+      vx: (Math.random() - 0.5) * 0.12,
+      vy: -Math.random() * 0.22 - 0.04,
+      a: Math.random() * 0.35 + 0.06
+    });
+  }
+
+  function tick() {
+    ctx.clearRect(0, 0, fxCanvas.width, fxCanvas.height);
+    if (Math.random() < 0.75) spawn();
+
+    for (let i = particles.length - 1; i >= 0; i -= 1) {
+      const p = particles[i];
+      p.x += p.vx;
+      p.y += p.vy;
+      p.a *= 0.996;
+      ctx.beginPath();
+      ctx.fillStyle = `rgba(227, 188, 137, ${p.a})`;
+      ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+      ctx.fill();
+      if (p.y < -10 || p.a < 0.02) particles.splice(i, 1);
+    }
+
+    requestAnimationFrame(tick);
+  }
+
+  resize();
+  tick();
+  window.addEventListener("resize", resize);
+})();
